@@ -32,23 +32,28 @@ jobs:
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' app/android/app/build.gradle.kts || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' app/android/app/build.gradle || true
           sed -i 's#<application#<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <application#' app/android/app/src/main/AndroidManifest.xml
-          if [ -f app/android/build.gradle.kts ]; then
-          cat >> app/android/build.gradle.kts <<'EOF'
+          cat > /tmp/prepend.kts <<'EOF'
+          // Force every Android plugin to compile against SDK 36
           subprojects {
-              tasks.configureEach {
-                  if (name.endsWith("AarMetadata")) { enabled = false }
+              afterEvaluate {
+                  val androidExt = extensions.findByName("android")
+                  if (androidExt != null) {
+                      try {
+                          androidExt.javaClass.getMethod("setCompileSdk", Int::class.javaObjectType).invoke(androidExt, 36)
+                      } catch (e: Exception) {
+                          try {
+                              androidExt.javaClass.getMethod("compileSdkVersion", Int::class.javaPrimitiveType).invoke(androidExt, 36)
+                          } catch (e2: Exception) {
+                              println("compileSdk override failed for ${project.name}")
+                          }
+                      }
+                  }
               }
           }
+
           EOF
-          else
-          cat >> app/android/build.gradle <<'EOF'
-          subprojects {
-              tasks.configureEach { task ->
-                  if (task.name.endsWith("AarMetadata")) { task.enabled = false }
-              }
-          }
-          EOF
-          fi
+          cat /tmp/prepend.kts app/android/build.gradle.kts > /tmp/new_build.kts
+          mv /tmp/new_build.kts app/android/build.gradle.kts
 
       - name: Build APK
         working-directory: app
