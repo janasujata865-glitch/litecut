@@ -1,0 +1,45 @@
+name: Build APK
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Create Android app and copy LiteCut code
+        run: |
+          unzip -q litecut_flutter_project.zip
+          flutter create --org com.example --project-name litecut --platforms=android app
+          cp litecut/pubspec.yaml app/pubspec.yaml
+          cp litecut/analysis_options.yaml app/analysis_options.yaml
+          rm -rf app/lib app/test
+          cp -r litecut/lib app/lib
+          cp -r litecut/test app/test
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' app/android/app/build.gradle.kts || true
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' app/android/app/build.gradle || true
+          sed -i 's#<application#<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <application#' app/android/app/src/main/AndroidManifest.xml
+
+      - name: Build APK
+        working-directory: app
+        run: |
+          flutter pub get
+          flutter build apk --release --no-shrink --target-platform android-arm64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: litecut-apk
+          path: app/build/app/outputs/flutter-apk/app-release.apk
