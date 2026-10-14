@@ -32,6 +32,23 @@ jobs:
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/' app/android/app/build.gradle.kts || true
           sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 24/' app/android/app/build.gradle || true
           sed -i 's#<application#<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"/>\n    <application#' app/android/app/src/main/AndroidManifest.xml
+          if [ -f app/android/build.gradle.kts ]; then
+          cat >> app/android/build.gradle.kts <<'EOF'
+          subprojects {
+              tasks.configureEach {
+                  if (name.endsWith("AarMetadata")) { enabled = false }
+              }
+          }
+          EOF
+          else
+          cat >> app/android/build.gradle <<'EOF'
+          subprojects {
+              tasks.configureEach { task ->
+                  if (task.name.endsWith("AarMetadata")) { task.enabled = false }
+              }
+          }
+          EOF
+          fi
 
       - name: Build APK
         working-directory: app
